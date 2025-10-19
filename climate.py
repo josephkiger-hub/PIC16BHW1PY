@@ -14,6 +14,15 @@ def query_climate(df: pd.DataFrame, country: str, year_begin: int, year_end: int
     Returns:
     dataframe with our filters applied
     '''
+    newDf = df.melt(id_vars=["NAME","LATITUDE","LONGITUDE", "Country", "Year","ID" ],
+                     var_name='Month', 
+                     value_name='Temp')
+    newDf["Month"] = newDf["Month"].str[5:].astype(int)
+    newDf = newDf[(newDf['Country'] == country) & (newDf['Year'] >= year_begin) & (newDf['Year'] <= year_end) & (newDf['Month'] == month)]
+    newDf = newDf.drop(columns = ['ID'])
+    return newDf
+    '''
+    
     dfNew = df.set_index(keys=["ID", "Year", "Country","LATITUDE","LONGITUDE","NAME"])
     dfNew = dfNew.stack( dropna = False)
     dfNew = dfNew.reset_index()
@@ -21,6 +30,7 @@ def query_climate(df: pd.DataFrame, country: str, year_begin: int, year_end: int
     dfNew["Month"] = dfNew["Month"].str[5:].astype(int)
     filteredDf = dfNew[(dfNew['Country'] == country) & (dfNew['Year'] >= year_begin) & (dfNew['Year'] <= year_end) & (dfNew['Month'] == month)]
     return filteredDf
+    '''
 
 def get_mean_temp(df: pd.DataFrame, country: str, year_begin: int, year_end: int, month: int) -> pd.DataFrame:
     '''
@@ -31,15 +41,10 @@ def get_mean_temp(df: pd.DataFrame, country: str, year_begin: int, year_end: int
     Returns:
     same as the above but with a new mean temp column
     '''
-    df3 = query_climate(df=df, country=country, year_begin=year_begin, year_end=year_end, month=month)
-    df4 = pd.DataFrame()
-    df4['Mean Temp'] = df3.groupby(["ID", 'Month'])[["Temperature (C)"]].mean().round(2)
-    df4 = df4.reset_index()
-    df3['Mean Temp'] = df4['Mean Temp']
-    df3 = pd.merge(df3, df4, on=["ID",'Month'])
-    df3 = df3.drop(columns = ['Mean Temp_x'])
-    df3 = df3.rename(columns={"Mean Temp_y": "Mean Temp"})
-    return df3
+    newDf = query_climate(df=df, country=country, year_begin=year_begin, year_end=year_end, month=month)
+    monthly_avg = newDf.groupby(['LONGITUDE', 'LATITUDE', 'Month'])['Temp'].transform('mean').round(2)
+    newDf['Mean_Temp'] = monthly_avg
+    return newDf
 
 def temperature_plot(df: pd.DataFrame, country: str, year_begin: int, year_end: int, month: int):
     '''
@@ -50,9 +55,9 @@ def temperature_plot(df: pd.DataFrame, country: str, year_begin: int, year_end: 
     Returns:
     Scatter heat map plot of our desired country with colored dots corresponding to the average temperature
     '''
-    temp = 'Mean Temp'
+    temp = 'Mean_Temp'
     if year_begin == year_end:
-        temp = 'Temperature (C)'
+        temp = 'Temp'
     fig = px.scatter_map(get_mean_temp(df=df, country=country, year_begin=year_begin, year_end=year_end, month=month),
                         lat="LATITUDE",
                         lon="LONGITUDE",
@@ -63,9 +68,9 @@ def temperature_plot(df: pd.DataFrame, country: str, year_begin: int, year_end: 
                         height=300,
                         map_style="carto-positron")
   #  fig.suptitle(f"Average Temperature at each station during {year_begin} to {year_end} in Month {month}")
-    if temp == 'Temperature (C)':
+    if temp == 'Temp':
         fig.update_layout(title = {'text': f"Temperature at each station during {year_end} in Month {month}", 'font': {'size': 15} }, margin={"r": 0, "t": 20, "l": 0, "b": 0})
     else: 
-        fig.update_layout(title = {'text': f"Average Temperature at each station during {year_begin} to {year_end} in Month {month}", 'font': {'size': 15} }, margin={"r": 0, "t": 25, "l": 0, "b": 0})
+        fig.update_layout(title = {'text': f"Average temperature at each station during {year_begin} to {year_end} in Month {month}", 'font': {'size': 15} }, margin={"r": 0, "t": 25, "l": 0, "b": 0})
     
     return fig
